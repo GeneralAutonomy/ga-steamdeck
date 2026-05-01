@@ -76,6 +76,28 @@ systemctl --user daemon-reload
 systemctl --user enable --now opensd
 ```
 
+### D. Persist Across Reboots (Enable Linger)
+
+By default, user services stop on logout and do not start at boot. Without lingering enabled, you would need to re-run `systemctl --user enable --now opensd` after every restart. Enable linger so the service auto-starts on boot:
+
+```bash
+loginctl enable-linger $USER
+```
+
+Verify linger is active and the service is enabled:
+
+```bash
+loginctl show-user $USER | grep Linger
+systemctl --user is-enabled opensd
+```
+
+If the unit file is located in a tmpfs path (e.g. `/run/user/.../systemd/`), it will be lost on reboot. Move it to a persistent location:
+
+```bash
+mkdir -p ~/.config/systemd/user
+# copy or symlink the opensd.service unit into ~/.config/systemd/user/
+```
+
 ---
 
 ## WiFi Connectivity (OLED Firmware Fix)
