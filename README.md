@@ -98,6 +98,39 @@ mkdir -p ~/.config/systemd/user
 # copy or symlink the opensd.service unit into ~/.config/systemd/user/
 ```
 
+### E. Auto-Restart on First-Boot Crash
+
+On some boots `opensdd` aborts with `terminate called without an active exception` (core-dump, status `6/ABRT`) the moment the user session starts — the service launches before the gamepad/uinput device is fully ready. The symptom is that you find yourself running `systemctl --user enable --now opensd` after every reboot to get the controller working.
+
+The fix is a drop-in override that tells systemd to retry the service automatically until it succeeds:
+
+```bash
+mkdir -p ~/.config/systemd/user/opensd.service.d
+cat > ~/.config/systemd/user/opensd.service.d/restart.conf <<'EOF'
+[Service]
+Restart=on-failure
+RestartSec=3
+StartLimitBurst=10
+StartLimitIntervalSec=120
+EOF
+systemctl --user daemon-reload
+```
+
+Verify the override is applied:
+
+```bash
+systemctl --user show opensd.service -p Restart -p RestartUSec -p StartLimitBurst
+# Expected: Restart=on-failure  RestartUSec=3s  StartLimitBurst=10
+```
+
+You can simulate the crash to confirm it auto-recovers without rebooting:
+
+```bash
+systemctl --user kill -s SIGABRT opensd.service
+sleep 5
+systemctl --user is-active opensd.service   # → active
+```
+
 ---
 
 ## WiFi Connectivity (OLED Firmware Fix)
@@ -208,6 +241,10 @@ Review the logs for any error messages:
 ```bash
 journalctl --user -u opensd -n 50
 ```
+
+### OpenSD Crashes on Boot (status=6/ABRT)
+
+If `journalctl --user -u opensd -b 0` shows `terminate called without an active exception` followed by `Main process exited, code=dumped, status=6/ABRT` immediately after login, the service is losing a startup race against the gamepad/uinput device. Apply the auto-restart override from [section E](#e-auto-restart-on-first-boot-crash) — systemd will retry until it succeeds.
 
 ### WiFi Not Working After Firmware Installation
 
